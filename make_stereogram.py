@@ -9,6 +9,7 @@ https://flothesof.github.io/making-stereograms-Python.html
 
 import numpy as np
 import matplotlib.pyplot as plt
+import scipy.ndimage as si
 from PIL import Image
 from PIL import ImageFont
 from PIL import ImageDraw
@@ -33,32 +34,26 @@ def create_depthmap(input_string, size):
     
     """
 
-    fontsize = 140
+    fontsize = 148
 
     image = Image.new('F', size)
     draw = ImageDraw.Draw(image)
-    font = ImageFont.truetype("ariblk.ttf", fontsize)
+    font = ImageFont.truetype("calibrib.ttf", fontsize)
+    w, h = draw.textsize(input_string, font=font)
 
-    # fix width and height offset
-    # TB TODO: Get the automatic placement of the text correct.
-    offset_width = 0.10 * size[0]
-    offset_height = 0.10 * size[1]
-
-    offset = (offset_width, offset_height)
-    draw.text(offset, input_string, 1.0, font=font)
+    draw.text(((size[0] - w)/2.0, (size[1] - h)/2.0),
+              input_string, font=font)
 
     raw_data = image.getdata()
     array_data = np.array(raw_data).reshape(image.size[0],
                                             image.size[1],
                                             order="F")
 
-    print(array_data.shape)
-    print("expected pixels are: {}".format(size[0]*size[1]))
-
-    return array_data.T
+    # apply a gaussian filter so edges aren't so sharp.
+    return si.gaussian_filter(array_data.T, 1.5)
 
 
-def make_autostereogram(depthmap, pattern, shift_amplitude=0.15):
+def make_autostereogram(depthmap, pattern, shift_amplitude=0.09):
     "Creates an autostereogram from depthmap and pattern."
     
     autostereogram = np.zeros_like(depthmap, dtype=pattern.dtype)
@@ -71,8 +66,18 @@ def make_autostereogram(depthmap, pattern, shift_amplitude=0.15):
             else:
                 shift = int(depthmap[r, c] * shift_amplitude * pattern.shape[1])
                 autostereogram[r, c] = autostereogram[r, c - pattern.shape[1] + shift]
+
     return autostereogram
 
-pattern = create_pattern((100, 100), 8)
-depth_map = create_depthmap("SPACE\nRACIST", size=(800, 600))
+pattern = create_pattern((80, 80), 32)
+depth_map = create_depthmap("SPACE\nRACISM!", size=(16*50, 9*50))
 stereogram = make_autostereogram(depth_map, pattern)
+
+# save out the stereogram image.
+_, ax = plt.subplots(figsize=(16, 9))
+ax.imshow(stereogram,
+          aspect="equal",
+          cmap="viridis",
+          interpolation=None)
+plt.axis("off")
+plt.savefig("autostereogram.png")
